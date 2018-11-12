@@ -89,3 +89,179 @@ public class MainController {
         model.addAttribute("paginationProducts", result);
         return "productList";
     }
+    @RequestMapping({ "/buyProduct" })
+    public String listProductHandler(HttpServletRequest request, Model model, //
+            @RequestParam(value = "code", defaultValue = "") String code) {
+ 
+        Product product = null;
+        if (code != null && code.length() > 0) {
+            product = productDAO.findProduct(code);
+        }
+        if (product != null) {
+ 
+            // 
+            CartInfo cartInfo = com.example.demo.utils.Utils.getCartInSession(request);
+ 
+            ProductInfo productInfo = new ProductInfo(product);
+ 
+            cartInfo.addProduct(productInfo, 1);
+        }
+ 
+        return "redirect:/shoppingCart";
+    }
+ 
+    @RequestMapping({ "/shoppingCartRemoveProduct" })
+    public String removeProductHandler(HttpServletRequest request, Model model, //
+            @RequestParam(value = "code", defaultValue = "") String code) {
+        Product product = null;
+        if (code != null && code.length() > 0) {
+            product = productDAO.findProduct(code);
+        }
+        if (product != null) {
+ 
+            CartInfo cartInfo = com.example.demo.utils.Utils.getCartInSession(request);
+ 
+            ProductInfo productInfo = new ProductInfo(product);
+ 
+            cartInfo.removeProduct(productInfo);
+ 
+        }
+ 
+        return "redirect:/shoppingCart";
+    }
+ 
+    // POST: Cập nhập số lượng cho các sản phẩm đã mua.
+    @RequestMapping(value = { "/shoppingCart" }, method = RequestMethod.POST)
+    public String shoppingCartUpdateQty(HttpServletRequest request, //
+            Model model, //
+            @ModelAttribute("cartForm") CartInfo cartForm) {
+ 
+        CartInfo cartInfo = com.example.demo.utils.Utils.getCartInSession(request);
+        cartInfo.updateQuantity(cartForm);
+ 
+        return "redirect:/shoppingCart";
+    }
+ 
+    // GET: Hiển thị giỏ hàng.
+    @RequestMapping(value = { "/shoppingCart" }, method = RequestMethod.GET)
+    public String shoppingCartHandler(HttpServletRequest request, Model model) {
+        CartInfo myCart = com.example.demo.utils.Utils.getCartInSession(request);
+ 
+        model.addAttribute("cartForm", myCart);
+        return "shoppingCart";
+    }
+ 
+    // GET: Nhập thông tin khách hàng.
+    @RequestMapping(value = { "/shoppingCartCustomer" }, method = RequestMethod.GET)
+    public String shoppingCartCustomerForm(HttpServletRequest request, Model model) {
+ 
+        CartInfo cartInfo = com.example.demo.utils.Utils.getCartInSession(request);
+ 
+        if (cartInfo.isEmpty()) {
+ 
+            return "redirect:/shoppingCart";
+        }
+        CustomerInfo customerInfo = cartInfo.getCustomerInfo();
+ 
+        CustomerForm customerForm = new CustomerForm(customerInfo);
+ 
+        model.addAttribute("customerForm", customerForm);
+ 
+        return "shoppingCartCustomer";
+    }
+ 
+    // POST: Save thông tin khách hàng.
+    @RequestMapping(value = { "/shoppingCartCustomer" }, method = RequestMethod.POST)
+    public String shoppingCartCustomerSave(HttpServletRequest request, //
+            Model model, //
+            @ModelAttribute("customerForm") @Validated CustomerForm customerForm, //
+            BindingResult result, //
+            final RedirectAttributes redirectAttributes) {
+ 
+        if (result.hasErrors()) {
+            customerForm.setValid(false);
+            // Forward tới trang nhập lại.
+            return "shoppingCartCustomer";
+        }
+ 
+        customerForm.setValid(true);
+        CartInfo cartInfo = com.example.demo.utils.Utils.getCartInSession(request);
+        CustomerInfo customerInfo = new CustomerInfo(customerForm);
+        cartInfo.setCustomerInfo(customerInfo);
+ 
+        return "redirect:/shoppingCartConfirmation";
+    }
+ 
+    // GET: Xem lại thông tin để xác nhận.
+    @RequestMapping(value = { "/shoppingCartConfirmation" }, method = RequestMethod.GET)
+    public String shoppingCartConfirmationReview(HttpServletRequest request, Model model) {
+        CartInfo cartInfo = com.example.demo.utils.Utils.getCartInSession(request);
+ 
+        if (cartInfo == null || cartInfo.isEmpty()) {
+ 
+            return "redirect:/shoppingCart";
+        } else if (!cartInfo.isValidCustomer()) {
+ 
+            return "redirect:/shoppingCartCustomer";
+        }
+        model.addAttribute("myCart", cartInfo);
+ 
+        return "shoppingCartConfirmation";
+    }
+ 
+    // POST: Gửi đơn hàng (Save).
+    @RequestMapping(value = { "/shoppingCartConfirmation" }, method = RequestMethod.POST)
+ 
+    public String shoppingCartConfirmationSave(HttpServletRequest request, Model model) {
+        CartInfo cartInfo = com.example.demo.utils.Utils.getCartInSession(request);
+ 
+        if (cartInfo.isEmpty()) {
+ 
+            return "redirect:/shoppingCart";
+        } else if (!cartInfo.isValidCustomer()) {
+ 
+            return "redirect:/shoppingCartCustomer";
+        }
+        try {
+            orderDAO.saveOrder(cartInfo);
+        } catch (Exception e) {
+ 
+            return "shoppingCartConfirmation";
+        }
+ 
+        // Xóa giỏ hàng khỏi session.
+        com.example.demo.utils.Utils.removeCartInSession(request);
+ 
+        // Lưu thông tin đơn hàng cuối đã xác nhận mua.
+        com.example.demo.utils.Utils.storeLastOrderedCartInSession(request, cartInfo);
+ 
+        return "redirect:/shoppingCartFinalize";
+    }
+ 
+    @RequestMapping(value = { "/shoppingCartFinalize" }, method = RequestMethod.GET)
+    public String shoppingCartFinalize(HttpServletRequest request, Model model) {
+ 
+        CartInfo lastOrderedCart = com.example.demo.utils.Utils.getLastOrderedCartInSession(request);
+ 
+        if (lastOrderedCart == null) {
+            return "redirect:/shoppingCart";
+        }
+        model.addAttribute("lastOrderedCart", lastOrderedCart);
+        return "shoppingCartFinalize";
+    }
+ 
+    @RequestMapping(value = { "/productImage" }, method = RequestMethod.GET)
+    public void productImage(HttpServletRequest request, HttpServletResponse response, Model model,
+            @RequestParam("code") String code) throws IOException {
+        Product product = null;
+        if (code != null) {
+            product = this.productDAO.findProduct(code);
+        }
+        if (product != null && product.getImage() != null) {
+            response.setContentType("image/jpeg, image/jpg, image/png, image/gif");
+            response.getOutputStream().write(product.getImage());
+        }
+        response.getOutputStream().close();
+    }
+ 
+}
