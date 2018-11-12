@@ -89,6 +89,7 @@ public class MainController {
         model.addAttribute("paginationProducts", result);
         return "productList";
     }
+    
     @RequestMapping({ "/buyProduct" })
     public String listProductHandler(HttpServletRequest request, Model model, //
             @RequestParam(value = "code", defaultValue = "") String code) {
